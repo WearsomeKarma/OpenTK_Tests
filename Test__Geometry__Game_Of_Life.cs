@@ -49,6 +49,8 @@ uniform float height;
 
 void main()
 {
+    gl_Position = vec4(aPosition, 0, 1);
+    return;
     //gl_Position = vec4(aPosition.x / width, aPosition.y / height, 0, 1) - vec4(1, 1, 0, 0);
     //gl_Position = vec4((aPosition.x - width/2) / width, (aPosition.y - height/2) / height, 0, 1) - vec4(0.4, 1, 0, 0);
     
@@ -70,19 +72,99 @@ void main()
     //gl_Position = vec4(aPosition.x / width, aPosition.y / height, 0, 1);
 }
 ";
+        string source__compute_geom = @"
+#version 420
+layout(points) in;
+layout(triangle_strip, max_vertices = 4) out;
+
+uniform sampler2D _sample;
+
+out float life;
+
+uniform float width;
+uniform float height;
+
+void main()
+{
+    vec2 cell = gl_in[0].gl_Position.xy;
+    vec2 cell_sample = vec2((cell.x + 0.5) / width, (cell.y + 0.5) / height);
+    cell = vec2(cell.x  * 2 / width, cell.y * 2 / height);
+
+    float cell_w = 1/width;
+    float cell_h = 1/height;
+
+    float life_sum = 0;
+    int iwidth = int(width);
+    int iheight = int(height);
+    vec2 p_in = gl_in[0].gl_Position.xy;
+    ivec2 sample_pos = ivec2(int(p_in.x), int(p_in.y));
+    for(int i=-1;i<2;i++)
+    {
+        if (i + sample_pos.x > iwidth || i+sample_pos.x < 0) continue;
+        for(int j=-1;j<2;j++)
+        {
+            if (j + sample_pos.y > iheight || j+sample_pos.y < 0) continue;
+            if(i==0 && j==0) continue;
+
+            //vec2 neighbor = cell_sample + vec2(cell_w * i, cell_h * j);
+            //life_sum += texture(_sample, neighbor).x;
+            life_sum += texelFetch(_sample, sample_pos + ivec2(i,j), 0).x;
+        }
+    }
+
+    life = life_sum;
+    if (life_sum < 3 || life_sum > 4)
+    {
+        if (life_sum < 2 || life_sum > 5)
+        {
+            life = 0;
+        }
+        else
+        {
+            if (life_sum > 3) life_sum - 1;
+
+            life = 1 - abs(3 - life_sum);
+        }
+    }
+    //life = texture(_sample, cell_sample).x;
+    //int x = int(gl_in[0].gl_Position.x);
+    //int y = int(gl_in[0].gl_Position.y);
+    //life = texelFetch(_sample, ivec2(x,y), 0).x;
+
+    vec2 cell_offset = vec2(-1 + cell_w, -1 + cell_h);
+    vec4 pos = vec4(cell + cell_offset, 0, 1);
+
+    gl_Position = pos + vec4(-cell_w, -cell_h, 0, 0);
+    //gl_Position = vec4(-0.5,0.5,0,1);
+    EmitVertex();
+
+    gl_Position = pos + vec4( cell_w, -cell_h, 0, 0);
+    //gl_Position = vec4(0.5,0.5,0,1);
+    EmitVertex();
+
+    gl_Position = pos + vec4(-cell_w,  cell_h, 0, 0);
+    //gl_Position = vec4(-0.5,-0.5,0,1);
+    EmitVertex();
+
+    gl_Position = pos + vec4( cell_w,  cell_h, 0, 0);
+    //gl_Position = vec4(0.5,-0.5,0,1);
+    EmitVertex();
+
+    EndPrimitive();
+}
+";
         string source__compute_frag = @"
 #version 420 
 
 out vec4 output_color;
 
-uniform sampler2D _sample;
+in float life;
 
 void main()
 {
-    //output_color = texture(_sample, gl_FragCoord.xy);
-    //output_color = output_color * 0.95;
-    //output_color = vec4(0,0,0,1);
-    output_color = vec4(0.5,0,0,1);
+    output_color = vec4(life, 0, 0, 1);
+    //output_color = vec4(0, life, 0, 1);
+    //output_color = vec4(1, 0, 0, 1);
 }
 ";
         bool err = false;
@@ -90,6 +172,7 @@ void main()
             new Shader.Factory()
             .Begin()
             .Add__Shader(ShaderType.VertexShader, source__compute_vert, ref err)
+            .Add__Shader(ShaderType.GeometryShader, source__compute_geom, ref err)
             .Add__Shader(ShaderType.FragmentShader, source__compute_frag, ref err)
             .Link()
             ;
@@ -124,11 +207,11 @@ void main()
     cell = vec2(cell.x  * 2 / width, cell.y * 2 / height);
     vec4 vec_life = texture(_sample, cell_sample);
 
-    life = min(0, (vec_life.x - 0.5)) / 0.5;
+    life = max(0, (vec_life.x - 0.5)) / 0.5;
     life = life * life;
 
     float mod = 1 - (1 - life);
-    if (mod == 0) return;
+    if (mod <= 0) return;
 
     float cell_w = 1/width * mod;
     float cell_h = 1/height * mod;
@@ -161,12 +244,11 @@ void main()
 
 out vec4 output_color;
 
-//in float life;
+in float life;
 
 void main()
 {
-    //output_color = vec4(0, life, 0, 1);
-    output_color = vec4(0, 1, 0, 1);
+    output_color = vec4(0, life, 0, 1);
 }
 ";
 
@@ -233,6 +315,7 @@ void main()
 
         // invalid value
         // for some reason I cannot use Luminance or Alpha...
+        
         TEXTURE_0 = new Texture
         (
             Width, 
@@ -247,7 +330,17 @@ void main()
             )
         );
 
-        TEXTURE_1 = new Texture(Width, Height);
+        TEXTURE_1 = new Texture(Width, Height
+                ,
+            new Texture.Direct__Pixel_Initalizer
+            (
+                4,
+                PixelInternalFormat.Rgba,
+                PixelFormat.Rgba,
+                PixelType.UnsignedByte,
+                byte_buffer: bytes
+            )
+                );
         
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, FRAMEBUFFER__COMPUTE);
         Private_Swap__Color_Attachments();
@@ -281,31 +374,61 @@ void main()
             0
         );
     }
+    
+    bool flop = false;
+    bool next = false;
+    protected override void OnKeyDown(OpenTK.Windowing.Common.KeyboardKeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key == OpenTK.Windowing.GraphicsLibraryFramework.Keys.T) flop = !flop;
+        if (e.Key == OpenTK.Windowing.GraphicsLibraryFramework.Keys.N) next = !next;
+    }
 
     protected override void OnRenderFrame(OpenTK.Windowing.Common.FrameEventArgs args)
     {
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, FRAMEBUFFER__COMPUTE);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
         SHADER__COMPUTE.Use();
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)Width);
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)Height);
+        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width * 12.75));
+        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height * 7.272425));
+        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width));
+        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height));
         GL.BindVertexArray(VAO__CELL_POINTS);
         GL.DrawArrays(PrimitiveType.Points, 0, CELL__COUNT);
-        //SwapBuffers();
-        //return;
+
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        GL.Clear(ClearBufferMask.ColorBufferBit);
+        GL.ActiveTexture(TextureUnit.Texture0);
+        if (flop)
+        GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
+        else
+        GL.BindTexture(TextureTarget.Texture2D, TEXTURE_WRITE.TEXTURE_HANDLE);
+        SHADER__DRAW.Use();
+        GL.Uniform1(SHADER__DRAW.Get__Uniform("width"), (float)Width);
+        GL.Uniform1(SHADER__DRAW.Get__Uniform("height"), (float)Height);
+        GL.BindVertexArray(VAO__CELL_POINTS);
+        GL.DrawArrays(PrimitiveType.Points, 0, CELL__COUNT);
+        SwapBuffers();
+        if (next)
+        {
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, FRAMEBUFFER__COMPUTE);
+            Private_Swap__Color_Attachments();
+            next = false;
+        }
+        return;
+        
 
         GL.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit);
 
         // invalidoperation
         Private_Swap__Color_Attachments();
-        Task.Delay(100).Wait();
+        Task.Delay(1000).Wait();
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.Clear(ClearBufferMask.ColorBufferBit);
         GL.ActiveTexture(TextureUnit.Texture0);
-        GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
+        GL.BindTexture(TextureTarget.Texture2D, TEXTURE_WRITE.TEXTURE_HANDLE);
         SHADER__DRAW.Use();
         GL.Uniform1(SHADER__DRAW.Get__Uniform("width"), (float)Width);
         GL.Uniform1(SHADER__DRAW.Get__Uniform("height"), (float)Height);

@@ -92,6 +92,7 @@ void main()
 
     protected void RENDER__DEFAULT(int? texture = null)
     {
+        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         if (texture != null)
         {
             GL.ActiveTexture(TextureUnit.Texture0);
