@@ -310,6 +310,12 @@ void main()
             ? new Random(Seed)
             : new Random()
             ;
+        if (Seed == -1)
+        {
+            int seed = random.Next();
+            Console.WriteLine($"Seed: {seed}");
+            random = new Random(seed);
+        }
 
         random.NextBytes(bytes);
 
@@ -397,33 +403,33 @@ void main()
         GL.BindVertexArray(VAO__CELL_POINTS);
         GL.DrawArrays(PrimitiveType.Points, 0, CELL__COUNT);
 
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-        GL.ActiveTexture(TextureUnit.Texture0);
-        if (flop)
-        GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
-        else
-        GL.BindTexture(TextureTarget.Texture2D, TEXTURE_WRITE.TEXTURE_HANDLE);
-        SHADER__DRAW.Use();
-        GL.Uniform1(SHADER__DRAW.Get__Uniform("width"), (float)Width);
-        GL.Uniform1(SHADER__DRAW.Get__Uniform("height"), (float)Height);
-        GL.BindVertexArray(VAO__CELL_POINTS);
-        GL.DrawArrays(PrimitiveType.Points, 0, CELL__COUNT);
-        SwapBuffers();
-        if (next)
-        {
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, FRAMEBUFFER__COMPUTE);
-            Private_Swap__Color_Attachments();
-            next = false;
-        }
-        return;
+        //GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        //GL.Clear(ClearBufferMask.ColorBufferBit);
+        //GL.ActiveTexture(TextureUnit.Texture0);
+        //if (flop)
+        //GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
+        //else
+        //GL.BindTexture(TextureTarget.Texture2D, TEXTURE_WRITE.TEXTURE_HANDLE);
+        //SHADER__DRAW.Use();
+        //GL.Uniform1(SHADER__DRAW.Get__Uniform("width"), (float)Width);
+        //GL.Uniform1(SHADER__DRAW.Get__Uniform("height"), (float)Height);
+        //GL.BindVertexArray(VAO__CELL_POINTS);
+        //GL.DrawArrays(PrimitiveType.Points, 0, CELL__COUNT);
+        //SwapBuffers();
+        //if (next)
+        //{
+        //    GL.BindFramebuffer(FramebufferTarget.Framebuffer, FRAMEBUFFER__COMPUTE);
+        //    Private_Swap__Color_Attachments();
+        //    next = false;
+        //}
+        //return;
         
 
         GL.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit);
 
         // invalidoperation
         Private_Swap__Color_Attachments();
-        Task.Delay(1000).Wait();
+        //Task.Delay(1000).Wait();
 
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.Clear(ClearBufferMask.ColorBufferBit);
