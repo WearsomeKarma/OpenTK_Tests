@@ -11,7 +11,7 @@ using OpenTK.Mathematics;
 
 namespace OpenTK_Test;
 
-public class Test__Geometry__Game_Of_Life : Test__Window
+public class Test__Geometry__Game_Of_Life__Viewport_Clamp : Test__Window
 {
     private int FRAMEBUFFER__COMPUTE;
 
@@ -35,7 +35,7 @@ public class Test__Geometry__Game_Of_Life : Test__Window
     [AllowNull]
     private readonly Shader SHADER__DRAW;
 
-    public Test__Geometry__Game_Of_Life()
+    public Test__Geometry__Game_Of_Life__Viewport_Clamp()
     {
         string source__compute_vert = @"
 #version 420 core
@@ -46,7 +46,30 @@ uniform float height;
 
 void main()
 {
+    // requires offbyone error fix on y
+    gl_Position = vec4(aPosition.x * 2 / width, (aPosition.y + 1) * 2 / height, 0, 1) - vec4(1, 1, 0, 0);
+    return;
     gl_Position = vec4(aPosition, 0, 1);
+    return;
+    //gl_Position = vec4(aPosition.x / width, aPosition.y / height, 0, 1) - vec4(1, 1, 0, 0);
+    //gl_Position = vec4((aPosition.x - width/2) / width, (aPosition.y - height/2) / height, 0, 1) - vec4(0.4, 1, 0, 0);
+    
+    
+    vec2 offset = aPosition ;//- vec2(width, height/2);
+    gl_Position = vec4(offset.x / width / 6.4, offset.y / height / 3.599, 0, 1) - vec4(1, 1, 0, 0);
+    //gl_Position = vec4(offset.x / width, offset.y / height, 0, 1) - vec4(0.5, 0.5, 0, 0);
+    return;
+
+
+
+
+    if (aPosition.x == 49)
+        gl_Position = vec4(0,0,0,1);
+    else
+        gl_Position = vec4(-100, 0, 0, 1);
+    //gl_Position = vec4(aPosition, 0, 1);
+    //gl_Position = vec4(aPosition, 0, 1);
+    //gl_Position = vec4(aPosition.x / width, aPosition.y / height, 0, 1);
 }
 ";
         string source__compute_geom = @"
@@ -130,10 +153,45 @@ void main()
 
 out vec4 output_color;
 
-in float life;
+uniform sampler2D _sample;
+
+uniform float width;
+uniform float height;
 
 void main()
 {
+    float cell_w = 1/width;
+    float cell_h = 1/height;
+
+    float life_sum = 0;
+    for(float i=-1;i<2;i++)
+    {
+        //if (gl_FragCoord.x + i * cell_w < 0 || gl_FragCoord.x + i * cell_w >= width) continue;
+        for(float j=-1;j<2;j++)
+        {
+            //if (gl_FragCoord.y + j * cell_h < 0 || gl_FragCoord.y + i * cell_h >= height) continue;
+            if (i==0 && j==0) continue;
+
+            life_sum += texture(_sample, gl_FragCoord.xy + vec2(i * cell_w, j * cell_h)).x;
+        }
+    }
+
+
+    float life = life_sum;
+    if (life_sum < 3 || life_sum > 4)
+    {
+        if (life_sum < 2 || life_sum > 5)
+        {
+            life = 0;
+        }
+        else
+        {
+            if (life_sum > 3) life_sum - 1;
+
+            life = 1 - abs(3 - life_sum);
+        }
+    }
+
     output_color = vec4(life, 0, 0, 1);
 }
 ";
@@ -142,7 +200,7 @@ void main()
             new Shader.Factory()
             .Begin()
             .Add__Shader(ShaderType.VertexShader, source__compute_vert, ref err)
-            .Add__Shader(ShaderType.GeometryShader, source__compute_geom, ref err)
+            //.Add__Shader(ShaderType.GeometryShader, source__compute_geom, ref err)
             .Add__Shader(ShaderType.FragmentShader, source__compute_frag, ref err)
             .Link()
             ;
@@ -255,7 +313,9 @@ void main()
             GL.Viewport(0, 0, Size.X, Size.Y);
         }
 
+        GL.Viewport(0,0,Width,Height);
         FRAMEBUFFER__COMPUTE = GL.GenFramebuffer();
+        GL.Viewport(0,0,Size.X,Size.Y);
 
         Handle__Reset();
     }
@@ -376,19 +436,21 @@ void main()
 
     protected override void OnRenderFrame(OpenTK.Windowing.Common.FrameEventArgs args)
     {
+        GL.Viewport(0,0,Width,Height);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, FRAMEBUFFER__COMPUTE);
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
         SHADER__COMPUTE.Use();
         //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width * 12.75));
         //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height * 7.272425));
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Size.X < Width ? Width : Size.X));
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Size.Y < Height ? Height : Size.Y));
-        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width));
-        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height));
+        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Size.X < Width ? Width : Size.X));
+        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Size.Y < Height ? Height : Size.Y));
+        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width));
+        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height));
         GL.BindVertexArray(VAO__CELL_POINTS);
         GL.DrawArrays(PrimitiveType.Points, 0, CELL__COUNT);
 
+        GL.Viewport(0,0,Size.X,Size.Y);
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         GL.Clear(ClearBufferMask.ColorBufferBit);
         GL.ActiveTexture(TextureUnit.Texture0);
@@ -397,8 +459,6 @@ void main()
         else
         GL.BindTexture(TextureTarget.Texture2D, TEXTURE_WRITE.TEXTURE_HANDLE);
         SHADER__DRAW.Use();
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Size.X < Width ? Width : Size.X));
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Size.Y < Height ? Height : Size.Y));
         GL.Uniform1(SHADER__DRAW.Get__Uniform("width"), (float)Width);
         GL.Uniform1(SHADER__DRAW.Get__Uniform("height"), (float)Height);
         GL.BindVertexArray(VAO__CELL_POINTS);
