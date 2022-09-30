@@ -104,10 +104,9 @@ void main()
         for(int j=-1;j<2;j++)
         {
             if (j + sample_pos.y > iheight || j+sample_pos.y < 0) continue;
+
             if(i==0 && j==0) continue;
 
-            //vec2 neighbor = cell_sample + vec2(cell_w * i, cell_h * j);
-            //life_sum += texture(_sample, neighbor).x;
             life_sum += texelFetch(_sample, sample_pos + ivec2(i,j), 0).x;
         }
     }
@@ -126,10 +125,6 @@ void main()
             life = 1 - abs(3 - life_sum);
         }
     }
-    //life = texture(_sample, cell_sample).x;
-    //int x = int(gl_in[0].gl_Position.x);
-    //int y = int(gl_in[0].gl_Position.y);
-    //life = texelFetch(_sample, ivec2(x,y), 0).x;
 
     vec2 cell_offset = vec2(-1 + cell_w, -1 + cell_h);
     vec4 pos = vec4(cell + cell_offset, 0, 1);
@@ -163,8 +158,6 @@ in float life;
 void main()
 {
     output_color = vec4(life, 0, 0, 1);
-    //output_color = vec4(0, life, 0, 1);
-    //output_color = vec4(1, 0, 0, 1);
 }
 ";
         bool err = false;
@@ -396,8 +389,10 @@ void main()
         GL.ActiveTexture(TextureUnit.Texture0);
         GL.BindTexture(TextureTarget.Texture2D, TEXTURE_READ.TEXTURE_HANDLE);
         SHADER__COMPUTE.Use();
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width * 12.75));
-        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height * 7.272425));
+        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width * 12.75));
+        //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height * 7.272425));
+        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Size.X < Width ? Width : Size.X));
+        GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Size.Y < Height ? Height : Size.Y));
         //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("width"), (float)(Width));
         //GL.Uniform1(SHADER__COMPUTE.Get__Uniform("height"), (float)(Height));
         GL.BindVertexArray(VAO__CELL_POINTS);
